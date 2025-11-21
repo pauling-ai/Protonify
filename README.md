@@ -222,3 +222,7 @@ This project is licensed under the Apache License 2.0 - see the [LICENSE](LICENS
 ## Contributing
 
 Contributions are welcome! Please feel free to submit a Pull Request.
+
+## Disclaimer
+
+This is an independent open-source project. It is not affiliated, associated, sponsored, or endorsed by Protonify Corporation, nor by any other entity with a similar name. Any similarity in naming is purely coincidental and does not imply any commercial relationship.
