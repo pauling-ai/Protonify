@@ -178,7 +178,6 @@ The core prediction model and methodology are from UniPKa - this project adds:
 - Simplified CLI interface
 - Python API for easy integration
 - Automatic model downloading
-- Multi-pH batch processing
 
 **Developed by:** Pablo Villanueva Cuñado ([@PabloPauling](https://github.com/PabloPauling)) at **[Pauling AI](https://www.pauling.ai/)**
 
