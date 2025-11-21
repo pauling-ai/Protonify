@@ -196,7 +196,7 @@ The core prediction model and methodology are from UniPKa - this project adds:
 - Automatic model downloading
 - Multi-pH batch processing
 
-**Developed by:** Pablo Pauling ([@PabloPauling](https://github.com/PabloPauling)) at **[Pauling AI](https://www.pauling.ai/)**
+**Developed by:** Pablo Villanueva Cuñado ([@PabloPauling](https://github.com/PabloPauling)) at **[Pauling AI](https://www.pauling.ai/)**
 
 ## Acknowledgments
 
