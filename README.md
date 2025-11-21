@@ -26,22 +26,6 @@ python -m build --wheel
 pip install dist/protonify-0.1.0-py3-none-any.whl
 ```
 
-### From wheel URL (if available)
-
-```bash
-pip install https://github.com/PabloPauling/Protonify/releases/download/v0.1.0/protonify-0.1.0-py3-none-any.whl
-```
-
-### For development
-
-```bash
-git clone https://github.com/PabloPauling/Protonify.git
-cd Protonify
-pip install build
-python -m build --wheel
-pip install dist/protonify-0.1.0-py3-none-any.whl
-```
-
 Note: Editable installs (`pip install -e .`) require setuptools with PEP 660 support.
 
 ## Quick Start
