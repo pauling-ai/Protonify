@@ -1,0 +1,240 @@
+# Protonify
+
+Protonation state prediction and microstate distribution for molecules at a given pH.
+
+Given a SMILES string and pH value(s), this tool:
+1. Enumerates all possible protonation states
+2. Optionally enumerates tautomers
+3. Predicts free energy for each microstate using a neural network
+4. Calculates Boltzmann distribution at the given pH
+5. Returns the most probable protonated SMILES
+
+## Installation
+
+### From GitHub (recommended)
+
+```bash
+# Clone the repository
+git clone https://github.com/PabloPauling/Protonify.git
+cd Protonify
+
+# Build the wheel
+pip install build
+python -m build --wheel
+
+# Install the package
+pip install dist/protonify-0.1.0-py3-none-any.whl
+```
+
+### From wheel URL (if available)
+
+```bash
+pip install https://github.com/PabloPauling/Protonify/releases/download/v0.1.0/protonify-0.1.0-py3-none-any.whl
+```
+
+### For development
+
+```bash
+git clone https://github.com/PabloPauling/Protonify.git
+cd Protonify
+pip install build
+python -m build --wheel
+pip install dist/protonify-0.1.0-py3-none-any.whl
+```
+
+Note: Editable installs (`pip install -e .`) require setuptools with PEP 660 support.
+
+## Quick Start
+
+```bash
+# Verify installation
+protonify --help
+
+# Basic prediction
+protonify --smiles "CCO" --ph 7.4 --template smart
+```
+
+## Usage
+
+### Command Line
+
+```bash
+# Basic usage (model auto-downloads on first run)
+protonify --smiles "CCO" --ph 7.4 --template smart
+
+# Use GPU for faster inference
+protonify --smiles "CCO" --ph 7.4 --template smart --gpu
+
+# Multiple pH values
+protonify --smiles "CCO" --ph "7.0,7.4,8.0" --template smart
+
+# Enable tautomer enumeration (slower but more thorough)
+protonify --smiles "CCO" --ph 7.4 --template smart --enumerate-tautomers
+
+# Use custom model
+protonify --smiles "CCO" --ph 7.4 --template smart --model-path /path/to/model.pt
+
+# Quiet mode (only output SMILES, useful for pipelines)
+protonify --smiles "CCO" --ph 7.4 --template smart -q
+```
+
+### Arguments
+
+| Argument | Required | Description |
+|----------|----------|-------------|
+| `--smiles` | Yes | SMILES string of the molecule to analyze |
+| `--ph` | Yes | pH value(s), single or comma-separated (e.g., "7.4" or "7.0,7.4,8.0") |
+| `--template` | Yes | Template type: `simple` or `smart` |
+| `--model-path` | No | Path to custom model (auto-downloads default model if not specified) |
+| `--enumerate-tautomers` | No | Enable tautomer enumeration (disabled by default for speed) |
+| `--gpu` | No | Use GPU for inference (requires CUDA) |
+| `--quiet`, `-q` | No | Suppress verbose output, only print final SMILES (useful for pipelines) |
+
+### Output
+
+For each pH value, the tool outputs:
+- **Most probable microstate**: The SMILES of the most likely protonation state
+- **Charge**: The formal charge of that microstate
+- **Probability**: The fraction/probability of that microstate
+- **Full distribution**: All microstates with their probabilities
+
+### Python API
+
+```python
+from protonify import predict_protonation
+
+# One-line prediction (model auto-downloads on first use)
+result = predict_protonation("CCO", ph=7.4)
+print(result["smiles"])      # Most probable protonated SMILES
+print(result["charge"])      # Formal charge
+print(result["probability"]) # Probability
+
+# Multiple pH values
+results = predict_protonation("CCO", ph=[7.0, 7.4, 8.0])
+for r in results:
+    print(f"pH {r['ph']}: {r['smiles']} (charge={r['charge']})")
+
+# Use simple template (faster) or smart template (default, more accurate)
+result = predict_protonation("CCO", ph=7.4, template="simple")
+result = predict_protonation("CCO", ph=7.4, template="smart")
+
+# With tautomer enumeration (slower, more thorough)
+result = predict_protonation("CCO", ph=7.4, skip_tautomers=False)
+
+# Use custom model
+result = predict_protonation("CCO", ph=7.4, model_path="/path/to/model.pt")
+
+# Use GPU (faster for large batches)
+result = predict_protonation("CCO", ph=7.4, use_gpu=True)
+
+# Verbose mode (show logging, disabled by default)
+result = predict_protonation("CCO", ph=7.4, quiet=False)
+```
+
+## Model
+
+The default model (~500MB) is loaded using the following priority:
+
+1. **Explicit path** - `--model-path` argument or `model_path=` parameter
+2. **Environment variable** - `PROTONIFY_MODEL_PATH=/path/to/model.pt`
+3. **Bundled model** - If installed with `pip install .` and model is in `protonify/models/`
+4. **Cached model** - Previously downloaded to `~/.cache/protonify/`
+5. **Auto-download** - Downloads from GitHub Releases on first use
+
+### Model Options
+
+| Method | Description |
+|--------|-------------|
+| **Bundled** | Model included in package installation |
+| **Auto-download** | Model downloads automatically on first use |
+| **Custom path** | Use `--model-path` or `model_path=` argument |
+| **Environment variable** | Set `PROTONIFY_MODEL_PATH=/path/to/model.pt` |
+
+### Pre-download model
+
+```python
+from protonify import download_model
+download_model()  # Downloads to ~/.cache/protonify/
+```
+
+### Manual download
+
+Download the model weights from [GitHub Releases](https://github.com/pabloPauling/protonify/releases) and place in `~/.cache/protonify/` or set `PROTONIFY_MODEL_PATH`.
+
+## Performance
+
+By default, tautomer enumeration is **disabled** for speed. This significantly reduces computation time while still enumerating all protonation states.
+
+For more thorough analysis (e.g., when accuracy is critical), enable tautomer enumeration:
+
+```bash
+# CLI
+protonify --smiles "CCO" --ph 7.4 --template smart --enumerate-tautomers
+
+# Python
+result = predict_protonation("CCO", ph=7.4, skip_tautomers=False)
+```
+
+## Dependencies
+
+- torch >= 2.0.0
+- numpy >= 1.21
+- pandas >= 1.3
+- scipy >= 1.7
+- rdkit >= 2023.0.0
+
+## About This Project
+
+Protonify is a **wrapper/interface** built on top of the original **UniPKa** project by **DP Technology Corp**.
+
+**Key contribution:** UniPKa visualizes the distribution of microstates vs pH in graphs, but does not offer a direct interface to obtain the most probable SMILES at a specific pH. Protonify adds this functionality: an API and CLI that directly return the most probable protonation state for integration into automated pipelines.
+
+The core prediction model and methodology are from UniPKa - this project adds:
+- **pH-to-SMILES interface**: Input pH, get the most probable protonated SMILES
+- Simplified CLI interface
+- Python API for easy integration
+- Automatic model downloading
+- Multi-pH batch processing
+
+**Developed by:** Pablo Pauling ([@PabloPauling](https://github.com/PabloPauling)) at **[Pauling AI](https://www.pauling.ai/)**
+
+## Acknowledgments
+
+This project is **based entirely on UniPKa** developed by **DP Technology Corp**. All credit for the scientific methodology and neural network architecture goes to the original authors.
+
+- **[Uni-pKa](https://github.com/dptech-corp/Uni-pKa)**: Neural network-based pKa prediction using Uni-Mol architecture
+- **[DP Technology Corp](https://github.com/dptech-corp)**: For developing and open-sourcing the foundational model and methodology
+- **Uni-Mol**: The underlying molecular representation framework
+
+We are grateful to DP Technology for making their work open-source.
+
+### References
+
+If you use this software in your research, please cite:
+
+```bibtex
+@software{protonify2025,
+  author = {Villanueva Cuñado, Pablo},
+  title = {Protonify: Protonation State Prediction for Molecules},
+  year = {2025},
+  organization = {Pauling AI},
+  url = {https://github.com/PabloPauling/Protonify}
+}
+
+@article{unipka2024,
+  title={Bridging Machine Learning and Thermodynamics for Accurate pKa Prediction},
+  author={Zhou, Gengmo and others},
+  journal={JACS Au},
+  year={2024},
+  publisher={American Chemical Society},
+  url={https://github.com/dptech-corp/Uni-pKa}
+}
+```
+
+## License
+
+This project is licensed under the Apache License 2.0 - see the [LICENSE](LICENSE) file for details.
+
+## Contributing
+
+Contributions are welcome! Please feel free to submit a Pull Request.

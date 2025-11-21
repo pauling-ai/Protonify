@@ -1,0 +1,28 @@
+Protonify
+Copyright 2025 Pauling AI / Pablo Villanueva
+
+This product includes software developed by DP Technology Corp (Uni-pKa).
+https://github.com/dptech-corp/Uni-pKa
+
+Uni-pKa is licensed under the Apache License, Version 2.0.
+
+The following files are derived from or based on Uni-pKa:
+- protonify/pka_utils.py
+- protonify/conformer_gen.py
+- protonify/dictionary.py
+- protonify/transformer.py
+- protonify/unimol_model.py
+- protonify/FreeEnergyPredictor.py
+- protonify/data/smarts_pattern.tsv
+- protonify/data/simple_smarts_pattern.tsv
+
+Modifications made by Protonify:
+- Added pH-to-SMILES interface (predict_protonation API)
+- Added command-line interface (CLI)
+- Added automatic model downloading
+- Added multi-pH batch processing
+- Made IPython dependency optional
+- Added quiet mode for pipeline integration
+
+The protonation template (smarts_pattern.tsv) is based on work from
+MolGpKa (MIT License): https://github.com/Xundrug/MolGpKa

@@ -1,0 +1,9 @@
+services:
+  protonify:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    volumes:
+      - ./protonify:/app/protonify
+    working_dir: /app
+    command: bash
