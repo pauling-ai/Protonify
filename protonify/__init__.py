@@ -19,7 +19,7 @@ from importlib.resources import files
 from typing import Union, List, Dict, Any, Optional
 
 # Default model URL (GitHub Releases)
-DEFAULT_MODEL_URL = "https://github.com/pabloPauling/protonify/releases/download/v0.1.0/t_dwar_v_novartis_a_b.pt"
+DEFAULT_MODEL_URL = "https://github.com/pauling-ai/Protonify/releases/download/v0.1.0/t_dwar_v_novartis_a_b.pt"
 DEFAULT_MODEL_NAME = "t_dwar_v_novartis_a_b.pt"
 CACHE_DIR = Path.home() / ".cache" / "protonify"
 
