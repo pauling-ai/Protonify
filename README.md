@@ -15,7 +15,7 @@ Given a SMILES string and pH value(s), this tool:
 
 ```bash
 # Clone the repository
-git clone https://github.com/PabloPauling/Protonify.git
+git clone https://github.com/pauling-ai/Protonify.git
 cd Protonify
 
 # Build the wheel
@@ -46,7 +46,7 @@ If you prefer to use Docker, follow these steps:
 
 ```bash
 # 1. Clone the repository
-git clone https://github.com/PabloPauling/Protonify.git
+git clone https://github.com/pauling-ai/Protonify.git
 cd Protonify
 
 # 2. Download the model weights
@@ -194,7 +194,7 @@ download_model()  # Downloads to ~/.cache/protonify/
 
 ### Manual download
 
-Download the model weights from [GitHub Releases](https://github.com/pabloPauling/protonify/releases) and place in `~/.cache/protonify/` or set `PROTONIFY_MODEL_PATH`.
+Download the model weights from [GitHub Releases](https://github.com/pauling-ai/Protonify/releases) and place in `~/.cache/protonify/` or set `PROTONIFY_MODEL_PATH`.
 
 ## Performance
 
@@ -224,7 +224,7 @@ result = predict_protonation("CCO", ph=7.4, skip_tautomers=False)
 
 If you get an error like `Failed to download model: HTTP Error 404: Not Found`, the automatic download failed. Solutions:
 
-1. **Manual download**: Download the model from [GitHub Releases](https://github.com/PabloPauling/Protonify/releases) and place it in `~/.cache/protonify/`
+1. **Manual download**: Download the model from [GitHub Releases](https://github.com/pauling-ai/Protonify/releases) and place it in `~/.cache/protonify/`
 
 2. **Set environment variable**:
    ```bash
@@ -307,7 +307,7 @@ If you use this software in your research, please cite both Protonify and the or
   title = {Protonify: Protonation State Prediction for Molecules},
   year = {2025},
   organization = {Pauling AI},
-  url = {https://github.com/PabloPauling/Protonify}
+  url = {https://github.com/pauling-ai/Protonify}
 }
 
 @article{unipka2024,
