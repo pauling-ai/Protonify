@@ -5,9 +5,14 @@ Simple usage:
     from protonify import predict_protonation
     result = predict_protonation("CCO", ph=7.4)
     print(result["smiles"])  # Most probable protonated SMILES
+
+Environment Variables:
+    PROTONIFY_MODEL_PATH: Path to the model file. If set, this path will be used
+                          instead of downloading or looking in the cache.
 """
 
 import os
+import sys
 import urllib.request
 from pathlib import Path
 from importlib.resources import files
@@ -17,6 +22,9 @@ from typing import Union, List, Dict, Any, Optional
 DEFAULT_MODEL_URL = "https://github.com/pabloPauling/protonify/releases/download/v0.1.0/t_dwar_v_novartis_a_b.pt"
 DEFAULT_MODEL_NAME = "t_dwar_v_novartis_a_b.pt"
 CACHE_DIR = Path.home() / ".cache" / "protonify"
+
+# Environment variable name for model path
+MODEL_PATH_ENV_VAR = "PROTONIFY_MODEL_PATH"
 
 # Lazy loading to avoid slow imports on module load
 _predictor = None
@@ -130,6 +138,38 @@ def get_model_path(model_path: Optional[str] = None) -> str:
     return str(download_model())
 
 
+def ensure_model(model_path: Optional[str] = None, set_env: bool = True) -> str:
+    """
+    Ensure the model is available, downloading if necessary.
+
+    This function should be called before using the API to ensure the model
+    is downloaded. It's especially useful when installing the package or
+    in scripts that need to guarantee the model is available.
+
+    Args:
+        model_path: Optional explicit path to model file
+        set_env: If True, set PROTONIFY_MODEL_PATH environment variable
+                 to the resolved model path (default: True)
+
+    Returns:
+        Path to the model file
+
+    Example:
+        >>> from protonify import ensure_model
+        >>> model_path = ensure_model()  # Downloads if needed, sets env var
+        >>> print(f"Model at: {model_path}")
+
+        # Or during installation:
+        >>> ensure_model()  # Guarantees model is ready for API use
+    """
+    resolved_path = get_model_path(model_path)
+
+    if set_env:
+        os.environ[MODEL_PATH_ENV_VAR] = resolved_path
+
+    return resolved_path
+
+
 def _get_predictor(model_path: Optional[str] = None, use_gpu: bool = False):
     """Lazily load the predictor (only once per model path + device combo)."""
     global _predictor, _predictor_model_path
@@ -200,12 +240,17 @@ def predict_protonation(
         # Show verbose output
         >>> result = predict_protonation("CCO", ph=7.4, quiet=False)
     """
-    import sys
     import logging
     import warnings
-    from contextlib import redirect_stdout, redirect_stderr
 
-    # Setup quiet mode
+    # IMPORTANT: Resolve model path BEFORE entering quiet mode
+    # This ensures that if the model needs to be downloaded, the user sees progress
+    resolved_model_path = get_model_path(model_path)
+
+    # Set environment variable so subsequent calls find the model immediately
+    os.environ[MODEL_PATH_ENV_VAR] = resolved_model_path
+
+    # Setup quiet mode AFTER model is resolved
     if quiet:
         logging.disable(logging.CRITICAL)
         warnings.filterwarnings('ignore')
@@ -220,7 +265,8 @@ def predict_protonation(
         from protonify.pka_utils import predict_ensemble_free_energy
         from protonify.ph_utils import process_single_ph
 
-        predictor = _get_predictor(model_path, use_gpu=use_gpu)
+        # Use the already-resolved model path
+        predictor = _get_predictor(resolved_model_path, use_gpu=use_gpu)
         template_a2b, template_b2a = _get_templates(template)
 
         ensemble_free_energy = predict_ensemble_free_energy(
@@ -258,4 +304,13 @@ def predict_protonation(
             logging.disable(logging.NOTSET)
 
 
-__all__ = ["predict_protonation", "download_model", "get_model_path", "get_bundled_model_path"]
+__all__ = [
+    "predict_protonation",
+    "download_model",
+    "get_model_path",
+    "get_bundled_model_path",
+    "ensure_model",
+    "MODEL_PATH_ENV_VAR",
+    "CACHE_DIR",
+    "DEFAULT_MODEL_NAME",
+]

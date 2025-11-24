@@ -167,6 +167,59 @@ result = predict_protonation("CCO", ph=7.4, skip_tautomers=False)
 - scipy >= 1.7
 - rdkit >= 2023.0.0
 
+## Troubleshooting
+
+### Model not found / HTTP 404 error
+
+If you get an error like `Failed to download model: HTTP Error 404: Not Found`, the automatic download failed. Solutions:
+
+1. **Manual download**: Download the model from [GitHub Releases](https://github.com/PabloPauling/Protonify/releases) and place it in `~/.cache/protonify/`
+
+2. **Set environment variable**:
+   ```bash
+   export PROTONIFY_MODEL_PATH="/path/to/t_dwar_v_novartis_a_b.pt"
+   ```
+
+### Multiple Python installations (conda, pyenv, system Python)
+
+If the CLI works but the Python API fails with a model error, you likely have multiple Python installations with protonify installed in different locations.
+
+**Symptoms:**
+- `protonify --smiles "CCO" --ph 7.4 --template smart` works
+- `python -c "from protonify import predict_protonation; predict_protonation('CCO', ph=7.4)"` fails with model not found
+
+**Cause:** The CLI uses one Python installation (with the bundled model) while your script uses another (without the model).
+
+**Solution:** Set the environment variable pointing to the existing model:
+
+```bash
+# Find where the model is installed
+find ~/.local /usr -name "t_dwar_v_novartis_a_b.pt" 2>/dev/null
+
+# Set the environment variable (add to ~/.bashrc for persistence)
+export PROTONIFY_MODEL_PATH="/path/found/above/t_dwar_v_novartis_a_b.pt"
+```
+
+**Alternative:** Install protonify in your active Python environment:
+```bash
+# Make sure you're in the correct environment
+which python  # Verify this is your intended Python
+
+# Reinstall protonify
+pip uninstall protonify
+pip install protonify
+```
+
+### Verifying your installation
+
+Run this to check if everything is working:
+
+```python
+from protonify import predict_protonation
+result = predict_protonation("CCO", ph=7.4)
+print(f"Success! Result: {result['smiles']}")
+```
+
 ## About This Project
 
 Protonify is a **wrapper/interface** built on top of the original **UniPKa** project by **DP Technology Corp**.

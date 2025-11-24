@@ -13,10 +13,13 @@ dependencies = [
     'pandas>=1.3',
     'scipy>=1.7',
     'rdkit>=2023.0.0',
+    'matplotlib>=3.5',
+    'Pillow>=9.0',
 ]
 
 [project.scripts]
 protonify = "protonify.__main__:main"
+protonify-download = "protonify:ensure_model"
 
 [tool.setuptools]
 packages = ["protonify", "protonify.data", "protonify.models", "protonify.tests"]
