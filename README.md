@@ -87,8 +87,8 @@ protonify --smiles "CCO" --ph 7.4 --template smart
 # Basic usage (model auto-downloads on first run)
 protonify --smiles "CCO" --ph 7.4 --template smart
 
-# Use GPU for faster inference
-protonify --smiles "CCO" --ph 7.4 --template smart --gpu
+# Force CPU (GPU is used by default when available)
+protonify --smiles "CCO" --ph 7.4 --template smart --cpu
 
 # Multiple pH values
 protonify --smiles "CCO" --ph "7.0,7.4,8.0" --template smart
@@ -112,7 +112,7 @@ protonify --smiles "CCO" --ph 7.4 --template smart -q
 | `--template` | Yes | Template type: `simple` or `smart` |
 | `--model-path` | No | Path to custom model (auto-downloads default model if not specified) |
 | `--enumerate-tautomers` | No | Enable tautomer enumeration (disabled by default for speed) |
-| `--gpu` | No | Use GPU for inference (requires CUDA) |
+| `--cpu` | No | Force CPU inference (GPU is used by default when available) |
 | `--quiet`, `-q` | No | Suppress verbose output, only print final SMILES (useful for pipelines) |
 
 ### Output
@@ -149,8 +149,8 @@ result = predict_protonation("CCO", ph=7.4, skip_tautomers=False)
 # Use custom model
 result = predict_protonation("CCO", ph=7.4, model_path="/path/to/model.pt")
 
-# Use GPU (faster for large batches)
-result = predict_protonation("CCO", ph=7.4, use_gpu=True)
+# Force CPU (GPU is used by default when available)
+result = predict_protonation("CCO", ph=7.4, use_gpu=False)
 
 # Verbose mode (show logging, disabled by default)
 result = predict_protonation("CCO", ph=7.4, quiet=False)
@@ -297,7 +297,9 @@ We are grateful to DP Technology for making their work open-source.
 
 ### References
 
-If you use this software in your research, please cite:
+If you use this software in your research, please cite both Protonify and the original Uni-pKa project:
+
+- **Uni-pKa repository**: https://github.com/dptech-corp/Uni-pKa
 
 ```bibtex
 @software{protonify2025,
