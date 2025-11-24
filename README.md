@@ -28,6 +28,47 @@ pip install dist/protonify-0.1.0-py3-none-any.whl
 
 Note: Editable installs (`pip install -e .`) require setuptools with PEP 660 support.
 
+### Download Model Weights
+
+The model weights (~500MB) must be downloaded separately:
+
+```bash
+# Using the provided script
+chmod +x download_model.sh
+./download_model.sh
+
+# Or manually download from GitHub Releases and place in protonify/models/
+```
+
+### Using Docker
+
+If you prefer to use Docker, follow these steps:
+
+```bash
+# 1. Clone the repository
+git clone https://github.com/PabloPauling/Protonify.git
+cd Protonify
+
+# 2. Download the model weights
+chmod +x download_model.sh
+./download_model.sh
+
+# 3. Build the Docker image
+chmod +x build_docker.sh
+./build_docker.sh
+# Or directly: docker build -t protonify:latest .
+
+# 4. Run predictions
+docker run --rm protonify --smiles "CCO" --ph 7.4 --template smart
+
+# Multiple pH values
+docker run --rm protonify --smiles "NCC(=O)O" --ph "2.0,7.4,10.0" --template smart
+
+# Quiet mode (only SMILES output)
+docker run --rm protonify --smiles "CC(=O)O" --ph 7.4 --template smart -q
+
+```
+
 ## Quick Start
 
 ```bash
@@ -114,6 +155,16 @@ result = predict_protonation("CCO", ph=7.4, use_gpu=True)
 # Verbose mode (show logging, disabled by default)
 result = predict_protonation("CCO", ph=7.4, quiet=False)
 ```
+
+### Testing the API
+
+To verify the Python API works correctly, run the test script:
+
+```bash
+python test_api.py
+```
+
+This runs several examples including basic predictions, multiple pH values, template comparison, and tautomer enumeration.
 
 ## Model
 
