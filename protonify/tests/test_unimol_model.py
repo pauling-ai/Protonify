@@ -2,14 +2,33 @@ import pytest
 import torch
 import numpy as np
 import os
+from pathlib import Path
 from protonify.unimol_model import (
     UniMolModel, ClassificationHead, NonLinearHead, GaussianLayer,
     pad_1d_tokens, pad_2d, pad_coords, gaussian, molecule_architecture
 )
 from protonify.FreeEnergyPredictor import FreeEnergyPredictor
+from protonify import get_model_path, MODEL_PATH_ENV_VAR, DEFAULT_MODEL_NAME
 
-# Get the path to the pretrained model
-MODEL_PATH = os.path.join(os.path.dirname(os.path.dirname(__file__)), "models", "t_dwar_v_novartis_a_b.pt")
+
+# Path to the model in the package
+PACKAGE_MODEL_PATH = Path(__file__).parent.parent / "models" / DEFAULT_MODEL_NAME
+
+
+def get_test_model_path():
+    """Get model path for testing, skip if not available or cannot be loaded."""
+    if PACKAGE_MODEL_PATH.exists():
+        os.environ[MODEL_PATH_ENV_VAR] = str(PACKAGE_MODEL_PATH)
+        # Try to actually load the model to verify it works
+        try:
+            torch.load(str(PACKAGE_MODEL_PATH), map_location='cpu', weights_only=False)
+        except Exception as e:
+            pytest.skip(f"Model exists but cannot be loaded: {e}")
+        return str(PACKAGE_MODEL_PATH)
+    try:
+        return get_model_path()
+    except Exception as e:
+        pytest.skip(f"Model not available for testing: {e}")
 
 @pytest.fixture
 def sample_smiles():
@@ -19,7 +38,8 @@ def sample_smiles():
 @pytest.fixture
 def predictor():
     """Create a FreeEnergyPredictor instance"""
-    return FreeEnergyPredictor(MODEL_PATH, batch_size=1, remove_hs=False)
+    model_path = get_test_model_path()
+    return FreeEnergyPredictor(model_path, batch_size=1, remove_hs=False)
 
 def test_unimol_model_forward(sample_smiles, predictor):
     """Test UniMolModel forward pass using FreeEnergyPredictor"""

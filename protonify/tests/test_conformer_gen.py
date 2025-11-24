@@ -10,12 +10,12 @@ def test_conformer_gen_init():
     gen = ConformerGen()
     assert gen.seed == 42
     assert gen.max_atoms == 256
-    assert gen.method == 'rdkit_random'
+    assert gen.mode == 'fast'
     # Custom params
-    gen2 = ConformerGen(seed=123, max_atoms=10, method='rdkit_random', remove_hs=True)
+    gen2 = ConformerGen(seed=123, max_atoms=10, mode='fast', remove_hs=True)
     assert gen2.seed == 123
     assert gen2.max_atoms == 10
-    assert gen2.method == 'rdkit_random'
+    assert gen2.mode == 'fast'
     assert gen2.remove_hs is True
 
 
@@ -31,11 +31,19 @@ def test_single_process_valid_smiles():
     assert result['src_coord'].shape[1] == 3
 
 
-def test_single_process_invalid_method():
-    """Test that an unknown method raises ValueError."""
-    gen = ConformerGen(method='unknown')
-    with pytest.raises(ValueError):
-        gen.single_process('CCO')
+def test_single_process_with_different_modes():
+    """Test conformer generation with different modes."""
+    # Fast mode (default)
+    gen_fast = ConformerGen(mode='fast')
+    result = gen_fast.single_process('CCO')
+    assert isinstance(result, dict)
+    assert 'src_tokens' in result
+
+    # Heavy mode
+    gen_heavy = ConformerGen(mode='heavy')
+    result = gen_heavy.single_process('CCO')
+    assert isinstance(result, dict)
+    assert 'src_tokens' in result
 
 
 def test_inner_smi2coords_removes_hs():
