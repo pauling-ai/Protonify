@@ -170,7 +170,7 @@ def ensure_model(model_path: Optional[str] = None, set_env: bool = True) -> str:
     return resolved_path
 
 
-def _get_predictor(model_path: Optional[str] = None, use_gpu: bool = False):
+def _get_predictor(model_path: Optional[str] = None, use_gpu: bool = True):
     """Lazily load the predictor (only once per model path + device combo)."""
     global _predictor, _predictor_model_path
 
