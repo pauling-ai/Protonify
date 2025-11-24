@@ -95,7 +95,7 @@ def cmd_predict(args):
         model_path,
         batch_size=32,
         remove_hs=False,
-        use_gpu=args.gpu
+        use_gpu=not args.cpu
     )
     if not args.quiet:
         print(f"FreeEnergyPredictor loaded from {model_path}")
@@ -202,7 +202,7 @@ Examples:
     parser.add_argument('--smiles', type=str, help='SMILES of the molecule to analyze')
     parser.add_argument('--model-path', type=str, default=None, help='Path to the pretrained model (defaults to auto-download)')
     parser.add_argument('--enumerate-tautomers', action='store_true', help='Enumerate tautomers (slower but more thorough). Default: skip tautomers for speed.')
-    parser.add_argument('--gpu', action='store_true', help='Use GPU for inference if available')
+    parser.add_argument('--cpu', action='store_true', help='Force CPU inference (GPU is used by default when available)')
     parser.add_argument('--quiet', '-q', action='store_true', help='Suppress verbose output, only print final SMILES result')
 
     args = parser.parse_args()
