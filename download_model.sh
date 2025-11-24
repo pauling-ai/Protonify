@@ -1,7 +1,7 @@
 #!/bin/bash
 # Download Protonify model weights
 
-MODEL_URL="https://github.com/pabloPauling/protonify/releases/download/v0.1.0/t_dwar_v_novartis_a_b.pt"
+MODEL_URL="https://github.com/pauling-ai/Protonify/releases/download/v0.1.0/t_dwar_v_novartis_a_b.pt"
 MODEL_DIR="protonify/models"
 MODEL_FILE="$MODEL_DIR/t_dwar_v_novartis_a_b.pt"
 
