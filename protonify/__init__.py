@@ -206,7 +206,7 @@ def predict_protonation(
     template: str = "smart",
     skip_tautomers: bool = True,
     model_path: Optional[str] = None,
-    use_gpu: bool = False,
+    use_gpu: bool = True,
     quiet: bool = True,
 ) -> Dict[str, Any]:
     """
@@ -218,7 +218,7 @@ def predict_protonation(
         template: Template type, "simple" or "smart" (default: "smart")
         skip_tautomers: Skip tautomer enumeration for speed (default: True)
         model_path: Optional path to custom model file (default: auto-download)
-        use_gpu: Use GPU for inference if available (default: False)
+        use_gpu: Use GPU for inference if available (default: True, falls back to CPU)
         quiet: Suppress all logging and print output (default: True)
 
     Returns:
