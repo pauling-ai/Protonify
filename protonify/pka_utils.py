@@ -1,12 +1,13 @@
 from protonify.FreeEnergyPredictor import FreeEnergyPredictor
 from rdkit.Chem import Mol, RWMol, AddHs, RemoveHs, SanitizeMol, MolToSmiles, MolFromSmiles, CanonSmiles, MolFromSmarts
-from rdkit.Chem.MolStandardize.rdMolStandardize import TautomerEnumerator
+from rdkit.Chem.MolStandardize.rdMolStandardize import TautomerEnumerator, TautomerEnumeratorStatus
 from rdkit.Chem.Draw import MolToImage, ReactionToImage
 from rdkit.Chem.rdChemReactions import ReactionFromSmarts
 from PIL import Image
 import math
-from typing import List, Tuple, Union, Callable, Literal
-from collections import OrderedDict
+import warnings
+from typing import Dict, List, Optional, Tuple, Union, Callable, Literal
+from collections import OrderedDict, defaultdict
 import pandas as pd
 import numpy as np
 try:
@@ -20,11 +21,90 @@ from rdkit.Chem import RemoveHs
 LN10 = math.log(10)
 TRANSLATE_PH = 6.504894871171601
 
-# Tautomer enumerator instance (reused for efficiency)
-_tautomer_enumerator = TautomerEnumerator()
-_tautomer_enumerator.SetMaxTautomers(50)  # Limit to avoid combinatorial explosion
+# Default cap on tautomers generated per enumeration call, to avoid combinatorial explosion
+DEFAULT_MAX_TAUTOMERS = 50
 
-def enumerate_tautomers(mol: Mol, max_tautomers: int = 50) -> List[Mol]:
+# Reasons a tautomer enumeration can be cut short
+TRUNCATED_MAX_TAUTOMERS = "max_tautomers"    # the max_tautomers cap was exceeded
+TRUNCATED_MAX_TRANSFORMS = "max_transforms"  # RDKit's internal transform limit was hit
+
+
+class TautomerLimitWarning(UserWarning):
+    """Emitted when tautomer enumeration stops early because a limit was reached.
+
+    A truncated enumeration is otherwise indistinguishable from a complete one,
+    so microstates beyond the limit could silently be missing from the ensemble.
+    """
+
+
+# Tautomer enumerator instances, one per cap (reused for efficiency)
+_tautomer_enumerators: Dict[int, TautomerEnumerator] = {}
+
+
+def _get_tautomer_enumerator(cap: int) -> TautomerEnumerator:
+    enumerator = _tautomer_enumerators.get(cap)
+    if enumerator is None:
+        enumerator = TautomerEnumerator()
+        enumerator.SetMaxTautomers(cap)
+        _tautomer_enumerators[cap] = enumerator
+    return enumerator
+
+
+def _check_max_tautomers(max_tautomers: int) -> int:
+    if isinstance(max_tautomers, bool) or not isinstance(max_tautomers, (int, np.integer)) or max_tautomers < 1:
+        raise ValueError(f"max_tautomers must be a positive integer, got {max_tautomers!r}")
+    return int(max_tautomers)
+
+
+def _enumerate_tautomers_checked(mol: Mol, max_tautomers: int) -> Tuple[List[Mol], Optional[str]]:
+    """Enumerate up to ``max_tautomers`` tautomers of ``mol``.
+
+    Returns ``(tautomers, reason)`` where ``reason`` is ``None`` if the enumeration
+    is complete, otherwise why it was cut short (``TRUNCATED_MAX_TAUTOMERS``,
+    ``TRUNCATED_MAX_TRANSFORMS`` or the name of another RDKit status).
+    ``max_tautomers`` must already be validated.
+    """
+    if mol is None:
+        return [], None
+    try:
+        # Ask RDKit for one more than the cap: it reports MaxTautomersReached as soon
+        # as the count equals its limit, even when no further tautomer exists, so only
+        # an (N+1)-th tautomer proves that the enumeration was actually truncated.
+        result = _get_tautomer_enumerator(max_tautomers + 1).Enumerate(mol)
+        tautomers = list(result)
+        status = result.status
+    except Exception:
+        # If enumeration fails, return the original molecule
+        return [mol], None
+    if len(tautomers) > max_tautomers:
+        return tautomers[:max_tautomers], TRUNCATED_MAX_TAUTOMERS
+    if status == TautomerEnumeratorStatus.MaxTransformsReached:
+        reason = TRUNCATED_MAX_TRANSFORMS
+    elif status != TautomerEnumeratorStatus.Completed:
+        reason = str(status.name)
+    else:
+        reason = None
+    return (tautomers if tautomers else [mol]), reason
+
+
+def describe_tautomer_truncations(truncations: Dict[str, str], max_tautomers: int, option: str = "max_tautomers") -> str:
+    """Human-readable summary of ``{smiles: reason}`` truncations, with advice per reason."""
+    by_reason: Dict[str, int] = defaultdict(int)
+    for reason in truncations.values():
+        by_reason[reason] += 1
+    parts = []
+    for reason, n in sorted(by_reason.items()):
+        if reason == TRUNCATED_MAX_TAUTOMERS:
+            parts.append(f"{n} molecule(s) had more than {max_tautomers} tautomers (increase {option})")
+        elif reason == TRUNCATED_MAX_TRANSFORMS:
+            parts.append(f"{n} molecule(s) hit RDKit's internal tautomer transform limit "
+                         f"(not controlled by {option})")
+        else:
+            parts.append(f"{n} molecule(s) stopped with RDKit status {reason}")
+    return "Tautomer enumeration was truncated: " + "; ".join(parts) + ". The ensemble may be incomplete."
+
+
+def enumerate_tautomers(mol: Mol, max_tautomers: int = DEFAULT_MAX_TAUTOMERS) -> List[Mol]:
     """
     Enumerate tautomers for a given molecule using RDKit's TautomerEnumerator.
 
@@ -33,16 +113,27 @@ def enumerate_tautomers(mol: Mol, max_tautomers: int = 50) -> List[Mol]:
         max_tautomers: Maximum number of tautomers to generate
 
     Returns:
-        List of tautomer Mol objects (includes the input molecule)
+        List of tautomer Mol objects
+
+    Warns:
+        TautomerLimitWarning: if the enumeration was truncated (more than
+            ``max_tautomers`` tautomers exist, or an RDKit limit was hit).
     """
-    if mol is None:
-        return []
-    try:
-        tautomers = list(_tautomer_enumerator.Enumerate(mol))
-        return tautomers if tautomers else [mol]
-    except Exception:
-        # If enumeration fails, return the original molecule
-        return [mol]
+    max_tautomers = _check_max_tautomers(max_tautomers)
+    tautomers, reason = _enumerate_tautomers_checked(mol, max_tautomers)
+    if reason is not None:
+        warnings.warn(
+            describe_tautomer_truncations({MolToSmiles(mol): reason}, max_tautomers),
+            TautomerLimitWarning,
+            stacklevel=2,
+        )
+    return tautomers
+
+
+def _warn_truncations(truncations: Dict[str, str], max_tautomers: int, stacklevel: int = 3) -> None:
+    if truncations:
+        warnings.warn(describe_tautomer_truncations(truncations, max_tautomers),
+                      TautomerLimitWarning, stacklevel=stacklevel)
 
 #Predictor setup example
 # model_path = "t_dwar_v_novartis_a_b.pt"
@@ -192,12 +283,29 @@ def prot_template(template: pd.DataFrame, smi: str, mode: str) -> Tuple[List[int
         smis.append(CanonSmiles(MolToSmiles(RemoveHs(prot(mol, site, mode)))))
     return sites, list(set(smis))
 
-def enumerate_template(smi: Union[str, List[str]], template_a2b: pd.DataFrame, template_b2a: pd.DataFrame, mode: str="A", maxiter: int=10, verbose: int=0, filter_patterns: List[Mol]=FILTER_PATTERNS, skip_tautomers: bool=False) -> Tuple[List[str], List[str]]:
+def enumerate_template(smi: Union[str, List[str]], template_a2b: pd.DataFrame, template_b2a: pd.DataFrame, mode: str="A", maxiter: int=10, verbose: int=0, filter_patterns: List[Mol]=FILTER_PATTERNS, skip_tautomers: bool=False, max_tautomers: int=DEFAULT_MAX_TAUTOMERS, truncations: Optional[Dict[str, str]]=None) -> Tuple[List[str], List[str]]:
+    """Enumerate protonation states (and, unless skip_tautomers, tautomers).
+
+    ``max_tautomers`` caps each individual tautomer enumeration. If ``truncations``
+    is given, it is filled with ``{canonical SMILES: reason}`` for every molecule whose
+    tautomer enumeration was cut short; otherwise a single TautomerLimitWarning is
+    emitted if any was.
+    """
     if isinstance(smi, str):
         smis = [smi]
     else:
         smis = list(smi)
-    enum_func = (lambda x: [x]) if skip_tautomers else enumerate_tautomers
+    report = truncations if truncations is not None else {}
+    if skip_tautomers:
+        enum_func = lambda x: [x]
+    else:
+        max_tautomers = _check_max_tautomers(max_tautomers)
+
+        def enum_func(mol):
+            tautomers, reason = _enumerate_tautomers_checked(mol, max_tautomers)
+            if reason is not None:
+                report[CanonSmiles(MolToSmiles(mol))] = reason
+            return tautomers
     if mode == "a2b":
         smis_A_pool, smis_B_pool = smis, []
     elif mode == "b2a":
@@ -238,6 +346,8 @@ def enumerate_template(smi: Union[str, List[str]], template_a2b: pd.DataFrame, t
         print(f"iter {i}, acid: {smis_A_pool}, base: {smis_B_pool}")
     smis_A_pool = list(map(CanonSmiles, smis_A_pool))
     smis_B_pool = list(map(CanonSmiles, smis_B_pool))
+    if truncations is None:
+        _warn_truncations(report, max_tautomers)
     return smis_A_pool, smis_B_pool 
 
 def log_sum_exp(DfGm: list[float]) -> float:
@@ -291,36 +401,43 @@ def calc_base_name(neutral_base_name: str, target_charge: int) -> str:
 from rdkit.Chem import GetFormalCharge
 from typing import Dict
 
-def get_ensemble(smi: str, template_a2b: pd.DataFrame, template_b2a: pd.DataFrame, maxiter: int=10, skip_tautomers: bool=False) -> Dict[int, list[str]]:
+def get_ensemble(smi: str, template_a2b: pd.DataFrame, template_b2a: pd.DataFrame, maxiter: int=10, skip_tautomers: bool=False, max_tautomers: int=DEFAULT_MAX_TAUTOMERS, truncations: Optional[Dict[str, str]]=None) -> Dict[int, list[str]]:
+    """Enumerate all protonation (and tautomeric) microstates, grouped by formal charge.
+
+    See enumerate_template for ``max_tautomers`` and ``truncations``.
+    """
+    report = truncations if truncations is not None else {}
     ensemble = dict()
     q0 = GetFormalCharge(MolFromSmiles(smi))
     ensemble[q0] = [smi]
     smis_0 = [smi]
-    smis_0, smis_b1 = enumerate_template(smis_0, template_a2b, template_b2a, maxiter=maxiter, mode="a2b", skip_tautomers=skip_tautomers)
+    smis_0, smis_b1 = enumerate_template(smis_0, template_a2b, template_b2a, maxiter=maxiter, mode="a2b", skip_tautomers=skip_tautomers, max_tautomers=max_tautomers, truncations=report)
     if smis_b1:
         ensemble[q0 - 1] = smis_b1
     q = q0 - 2
     while True:
         if q + 1 in ensemble:
-            _, smis_b = enumerate_template(ensemble[q + 1], template_a2b, template_b2a, maxiter=maxiter, mode="a2b", skip_tautomers=skip_tautomers)
+            _, smis_b = enumerate_template(ensemble[q + 1], template_a2b, template_b2a, maxiter=maxiter, mode="a2b", skip_tautomers=skip_tautomers, max_tautomers=max_tautomers, truncations=report)
             if smis_b:
                 ensemble[q] = smis_b
             else:
                 break
         q -= 1
-    smis_a1, smis_0 = enumerate_template(smis_0, template_a2b, template_b2a, maxiter=maxiter, mode="b2a", skip_tautomers=skip_tautomers)
+    smis_a1, smis_0 = enumerate_template(smis_0, template_a2b, template_b2a, maxiter=maxiter, mode="b2a", skip_tautomers=skip_tautomers, max_tautomers=max_tautomers, truncations=report)
     if smis_a1:
         ensemble[q0 + 1] = smis_a1
     q = q0 + 2
     while True:
         if q - 1 in ensemble:
-            smis_a, _ = enumerate_template(ensemble[q - 1], template_a2b, template_b2a, maxiter=maxiter, mode="b2a", skip_tautomers=skip_tautomers)
+            smis_a, _ = enumerate_template(ensemble[q - 1], template_a2b, template_b2a, maxiter=maxiter, mode="b2a", skip_tautomers=skip_tautomers, max_tautomers=max_tautomers, truncations=report)
             if smis_a:
                 ensemble[q] = smis_a
             else:
                 break
         q += 1
     ensemble[q0] = smis_0
+    if truncations is None:
+        _warn_truncations(report, max_tautomers)
     return ensemble
 
 def get_neutral_base_name(ensemble: Dict[int, list[str]]) -> str:
@@ -337,8 +454,15 @@ def draw_ensemble(ensemble: Dict[int, list[str]]) -> None:
 from collections import defaultdict
 import pylab as pl
 
-def predict_ensemble_free_energy(smi: str, template_a2b: pd.DataFrame, template_b2a: pd.DataFrame, predictor, skip_tautomers: bool=False) -> Dict[int, list[tuple[str, float]]]:
-    ensemble = get_ensemble(smi, template_a2b, template_b2a, skip_tautomers=skip_tautomers)
+def predict_ensemble_free_energy(smi: str, template_a2b: pd.DataFrame, template_b2a: pd.DataFrame, predictor, skip_tautomers: bool=False, max_tautomers: int=DEFAULT_MAX_TAUTOMERS, truncations: Optional[Dict[str, str]]=None) -> Dict[int, list[tuple[str, float]]]:
+    """Predict the free energy (DfGm, in units of RT) of every microstate, grouped by charge.
+
+    See enumerate_template for ``max_tautomers`` and ``truncations``.
+    """
+    report = truncations if truncations is not None else {}
+    ensemble = get_ensemble(smi, template_a2b, template_b2a, skip_tautomers=skip_tautomers, max_tautomers=max_tautomers, truncations=report)
+    if truncations is None:
+        _warn_truncations(report, max_tautomers)
     ensemble_free_energy = dict()
     for q, macrostate in ensemble.items():
         prediction = predictor.predict(macrostate)

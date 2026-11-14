@@ -161,6 +161,36 @@ class TestPredictProtonation:
         assert "smiles" in result_no_taut
         assert "smiles" in result_taut
 
+    def test_max_tautomers_reported(self):
+        """Hitting max_tautomers is reported; a high limit is not."""
+        get_test_model_path()  # Skip if model not available
+
+        smi = "Oc1nc(O)nc(O)n1"
+        from protonify.pka_utils import TautomerLimitWarning
+        with pytest.warns(TautomerLimitWarning):
+            truncated = predict_protonation(smi, ph=7.4, skip_tautomers=False, max_tautomers=1)
+        complete = predict_protonation(smi, ph=7.4, skip_tautomers=False, max_tautomers=1000)
+        assert truncated["tautomer_limit_reached"] is True
+        assert complete["tautomer_limit_reached"] is False
+        n = lambda r: sum(len(v) for v in r["free_energies"].values())
+        assert n(complete) > n(truncated)
+
+    def test_max_tautomers_invalid(self):
+        with pytest.raises(ValueError):
+            predict_protonation("CCO", ph=7.4, skip_tautomers=False, max_tautomers=0)
+
+    def test_multiple_ph_includes_distribution_and_free_energies(self):
+        """List-of-pH results carry full_distribution and free_energies."""
+        get_test_model_path()  # Skip if model not available
+
+        results = predict_protonation("CC(=O)O", ph=[3.0, 7.4])
+        for r in results:
+            assert "full_distribution" in r
+            assert r["free_energies"] == results[0]["free_energies"]
+            assert r["tautomer_limit_reached"] is False
+        microstates = {s for v in results[0]["free_energies"].values() for s, _ in v}
+        assert microstates == {s for v in results[0]["full_distribution"].values() for s, _ in v}
+
     def test_quiet_mode(self):
         """Test that quiet mode suppresses output."""
         get_test_model_path()  # Skip if model not available
